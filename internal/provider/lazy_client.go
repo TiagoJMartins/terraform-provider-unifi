@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -23,62 +22,86 @@ type lazyClient struct {
 	subsystem string
 
 	once  sync.Once
-	inner *unifi.Client
-}
-
-func setHTTPClient(c *unifi.Client, insecure bool, subsystem string) {
-	httpClient := &http.Client{}
-	httpClient.Transport = &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-			DualStack: true,
-		}).DialContext,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: insecure,
-		},
-	}
-
-	httpClient.Transport = logging.NewSubsystemLoggingHTTPTransport(subsystem, httpClient.Transport)
-
-	jar, _ := cookiejar.New(nil)
-	httpClient.Jar = jar
-
-	c.SetHTTPClient(httpClient)
+	inner unifi.Client
 }
 
 var initErr error
 
 func (c *lazyClient) init(ctx context.Context) error {
 	c.once.Do(func() {
-		c.inner = &unifi.Client{}
-		setHTTPClient(c.inner, c.insecure, c.subsystem)
+		log.Printf("[DEBUG] Starting lazy client initialization with URL: %s", c.baseURL)
 
-		initErr = c.inner.SetBaseURL(c.baseURL)
+		// Create HTTP client with proper configuration
+		httpClient := &http.Client{}
+		httpClient.Transport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+				DualStack: true,
+			}).DialContext,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: c.insecure,
+			},
+		}
+
+		httpClient.Transport = logging.NewSubsystemLoggingHTTPTransport(c.subsystem, httpClient.Transport)
+
+		jar, _ := cookiejar.New(nil)
+		httpClient.Jar = jar
+
+		// Create client using the new interface
+		config := &unifi.ClientConfig{
+			URL:       c.baseURL,
+			User:      c.user,
+			Password:  c.pass,
+			VerifySSL: !c.insecure,
+			HttpRoundTripperProvider: func() http.RoundTripper {
+				return httpClient.Transport
+			},
+		}
+
+		log.Printf("[DEBUG] Creating UniFi client with config - URL: %s, User: %s, VerifySSL: %t",
+			config.URL, config.User, config.VerifySSL)
+
+		c.inner, initErr = unifi.NewBareClient(config)
 		if initErr != nil {
+			log.Printf("[ERROR] Failed to create UniFi client: %v", initErr)
+			return
+		}
+		log.Printf("[DEBUG] UniFi client created successfully")
+
+		log.Printf("[DEBUG] Attempting to login to UniFi controller")
+		initErr = c.inner.Login()
+		if initErr != nil {
+			log.Printf("[ERROR] Failed to login to UniFi controller: %v", initErr)
+			return
+		}
+		log.Printf("[DEBUG] Successfully logged in to UniFi controller")
+
+		versionStr := c.inner.Version()
+		log.Printf("[DEBUG] Retrieved controller version: %q", versionStr)
+
+		initErr = checkMinimumControllerVersion(versionStr)
+		if initErr != nil {
+			log.Printf("[ERROR] Controller version check failed: %v", initErr)
 			return
 		}
 
-		initErr = c.inner.Login(ctx, c.user, c.pass)
-		if initErr != nil {
-			return
-		}
-
-		initErr = checkMinimumControllerVersion(c.inner.Version())
-		log.Printf("[TRACE] Unifi controller version: %q", c.inner.Version())
+		log.Printf("[TRACE] Unifi controller version: %q", versionStr)
+		log.Printf("[DEBUG] Lazy client initialization completed successfully")
 	})
 	return initErr
 }
 
 func (c *lazyClient) Version() string {
 	if err := c.init(context.Background()); err != nil {
-		panic(fmt.Sprintf("client not initialized: %s", err))
+		// Return empty string if initialization fails, let the caller handle it
+		return ""
 	}
 	return c.inner.Version()
 }
@@ -100,11 +123,11 @@ func (c *lazyClient) ListAPGroup(ctx context.Context, site string) ([]unifi.APGr
 	}
 	return c.inner.ListAPGroup(ctx, site)
 }
-func (c *lazyClient) DeleteNetwork(ctx context.Context, site, id, name string) error {
+func (c *lazyClient) DeleteNetwork(ctx context.Context, site, id string) error {
 	if err := c.init(ctx); err != nil {
 		return err
 	}
-	return c.inner.DeleteNetwork(ctx, site, id, name)
+	return c.inner.DeleteNetwork(ctx, site, id)
 }
 func (c *lazyClient) CreateNetwork(ctx context.Context, site string, d *unifi.Network) (*unifi.Network, error) {
 	if err := c.init(ctx); err != nil {

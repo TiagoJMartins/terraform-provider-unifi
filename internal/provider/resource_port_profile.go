@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -277,11 +278,6 @@ func resourcePortProfileGetResourceData(d *schema.ResourceData) (*unifi.PortProf
 		return nil, err
 	}
 
-	taggedNetworkconfIds, err := setToStringSlice(d.Get("tagged_networkconf_ids").(*schema.Set))
-	if err != nil {
-		return nil, err
-	}
-
 	return &unifi.PortProfile{
 		Autoneg:                      d.Get("autoneg").(bool),
 		Dot1XCtrl:                    d.Get("dot1x_ctrl").(string),
@@ -295,7 +291,7 @@ func resourcePortProfileGetResourceData(d *schema.ResourceData) (*unifi.PortProf
 		LldpmedNotifyEnabled:         d.Get("lldpmed_notify_enabled").(bool),
 		NATiveNetworkID:              d.Get("native_networkconf_id").(string),
 		Name:                         d.Get("name").(string),
-		OpMode:                       d.Get("op_mode").(string),
+		OpMode:                       "switch",
 		PoeMode:                      d.Get("poe_mode").(string),
 		PortSecurityEnabled:          d.Get("port_security_enabled").(bool),
 		PortSecurityMACAddress:       portSecurityMacAddress,
@@ -315,7 +311,6 @@ func resourcePortProfileGetResourceData(d *schema.ResourceData) (*unifi.PortProf
 		StormctrlUcastLevel:          d.Get("stormctrl_ucast_level").(int),
 		StormctrlUcastRate:           d.Get("stormctrl_ucast_rate").(int),
 		StpPortMode:                  d.Get("stp_port_mode").(bool),
-		TaggedNetworkIDs:             taggedNetworkconfIds,
 		VoiceNetworkID:               d.Get("voice_networkconf_id").(string),
 	}, nil
 }
@@ -354,7 +349,6 @@ func resourcePortProfileSetResourceData(resp *unifi.PortProfile, d *schema.Resou
 	d.Set("stormctrl_ucast_level", resp.StormctrlUcastLevel)
 	d.Set("stormctrl_ucast_rate", resp.StormctrlUcastRate)
 	d.Set("stp_port_mode", resp.StpPortMode)
-	d.Set("tagged_networkconf_ids", stringSliceToSet(resp.TaggedNetworkIDs))
 	d.Set("voice_networkconf_id", resp.VoiceNetworkID)
 
 	return nil
@@ -370,7 +364,7 @@ func resourcePortProfileRead(ctx context.Context, d *schema.ResourceData, meta i
 		site = c.site
 	}
 	resp, err := c.c.GetPortProfile(ctx, site, id)
-	if _, ok := err.(*unifi.NotFoundError); ok {
+	if errors.Is(err, unifi.ErrNotFound) {
 		d.SetId("")
 		return nil
 	}

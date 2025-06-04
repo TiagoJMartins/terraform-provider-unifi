@@ -9,6 +9,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -25,7 +26,7 @@ var providerFactories = map[string]func() (*schema.Provider, error){
 	},
 }
 
-var testClient *unifi.Client
+var testClient unifi.Client
 
 func TestMain(m *testing.M) {
 	if os.Getenv("TF_ACC") == "" {
@@ -34,6 +35,55 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(runAcceptanceTests(m))
+}
+
+func waitForUniFiReady(endpoint, user, password string) error {
+	maxWait := 5 * time.Minute
+	interval := 10 * time.Second
+	timeout := time.After(maxWait)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	fmt.Printf("Waiting for UniFi controller to be ready...")
+
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timed out waiting for UniFi controller to be ready after %v", maxWait)
+		case <-ticker.C:
+			client, err := unifi.NewBareClient(&unifi.ClientConfig{
+				URL:       endpoint,
+				User:      user,
+				Password:  password,
+				VerifySSL: false,
+			})
+			if err != nil {
+				fmt.Printf(".")
+				continue
+			}
+
+			if err = client.Login(); err != nil {
+				fmt.Printf(".")
+				continue
+			}
+
+			// Try to get controller version - if it returns non-empty, the controller is ready
+			version := client.Version()
+			if version != "" {
+				fmt.Printf(" ready! (version: %s)\n", version)
+				return nil
+			}
+
+			// Also try to list sites as another check
+			_, err = client.ListSites(context.Background())
+			if err == nil {
+				fmt.Printf(" ready!\n")
+				return nil
+			}
+
+			fmt.Printf(".")
+		}
+	}
 }
 
 func runAcceptanceTests(m *testing.M) int {
@@ -86,6 +136,11 @@ func runAcceptanceTests(m *testing.M) int {
 	const user = "admin"
 	const password = "admin"
 
+	// Wait for UniFi controller to be fully ready
+	if err = waitForUniFiReady(endpoint, user, password); err != nil {
+		panic(err)
+	}
+
 	if err = os.Setenv("UNIFI_USERNAME", user); err != nil {
 		panic(err)
 	}
@@ -102,10 +157,17 @@ func runAcceptanceTests(m *testing.M) int {
 		panic(err)
 	}
 
-	testClient = &unifi.Client{}
-	setHTTPClient(testClient, true, "unifi")
-	testClient.SetBaseURL(endpoint)
-	if err = testClient.Login(ctx, user, password); err != nil {
+	testClient, err = unifi.NewBareClient(&unifi.ClientConfig{
+		URL:       endpoint,
+		User:      user,
+		Password:  password,
+		VerifySSL: false,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	if err = testClient.Login(); err != nil {
 		panic(err)
 	}
 

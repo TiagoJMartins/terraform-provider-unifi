@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -268,9 +269,9 @@ func resourceWLANGetResourceData(d *schema.ResourceData, meta interface{}) (*uni
 	}
 
 	if wpa3Transition && pmf == "disabled" {
-		return nil, fmt.Errorf("WPA 3 transition mode requires pmf_mode to be turned on.")
+		return nil, fmt.Errorf("the WPA 3 transition mode requires pmf_mode to be turned on")
 	} else if wpa3 && !wpa3Transition && pmf != "required" {
-		return nil, fmt.Errorf("For WPA 3 you must set pmf_mode to required.")
+		return nil, fmt.Errorf("for WPA 3 you must set pmf_mode to required")
 	}
 
 	macFilterEnabled := d.Get("mac_filter_enabled").(bool)
@@ -448,7 +449,7 @@ func resourceWLANRead(ctx context.Context, d *schema.ResourceData, meta interfac
 	}
 
 	resp, err := c.c.GetWLAN(ctx, site, id)
-	if _, ok := err.(*unifi.NotFoundError); ok {
+	if errors.Is(err, unifi.ErrNotFound) {
 		d.SetId("")
 		return nil
 	}
@@ -492,7 +493,7 @@ func resourceWLANDelete(ctx context.Context, d *schema.ResourceData, meta interf
 	}
 
 	err := c.c.DeleteWLAN(ctx, site, id)
-	if _, ok := err.(*unifi.NotFoundError); ok {
+	if errors.Is(err, unifi.ErrNotFound) {
 		return nil
 	}
 	return diag.FromErr(err)

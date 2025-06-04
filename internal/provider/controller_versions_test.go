@@ -7,7 +7,16 @@ import (
 )
 
 func preCheckMinVersion(t *testing.T, min *version.Version) {
-	v, err := version.NewVersion(testClient.Version())
+	if testClient == nil {
+		t.Skip("testClient is nil, skipping acceptance test")
+	}
+
+	versionStr := testClient.Version()
+	if versionStr == "" {
+		t.Skip("controller version not available, skipping test")
+	}
+
+	v, err := version.NewVersion(versionStr)
 	if err != nil {
 		t.Fatalf("error parsing version: %s", err)
 	}
@@ -17,7 +26,16 @@ func preCheckMinVersion(t *testing.T, min *version.Version) {
 }
 
 func preCheckVersionConstraint(t *testing.T, cs string) {
-	v, err := version.NewVersion(testClient.Version())
+	if testClient == nil {
+		t.Skip("testClient is nil, skipping acceptance test")
+	}
+
+	versionStr := testClient.Version()
+	if versionStr == "" {
+		t.Skip("controller version not available, skipping test")
+	}
+
+	v, err := version.NewVersion(versionStr)
 	if err != nil {
 		t.Fatalf("Error parsing version: %s", err)
 	}

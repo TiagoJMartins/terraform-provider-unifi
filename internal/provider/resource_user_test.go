@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"regexp"
@@ -150,7 +151,7 @@ func TestAccUser_existing_mac_allow(t *testing.T) {
 				Name: "tfacc-existing",
 				Note: "tfacc-existing",
 			})
-			if err != nil && strings.Contains(err.Error(), "api.Err.MacUsed") {
+			if err != nil && strings.Contains(err.Error(), "api.err.MacUsed") {
 				t.Fatal(err)
 			}
 		},
@@ -174,6 +175,10 @@ func TestAccUser_existing_mac_allow(t *testing.T) {
 }
 
 func TestAccUser_existing_mac_deny(t *testing.T) {
+	if testClient == nil {
+		t.Skip("testClient is nil, skipping acceptance test")
+	}
+
 	mac, unallocateTestMac := allocateTestMac(t)
 
 	_, err := testClient.CreateUser(context.Background(), "default", &unifi.User{
@@ -284,6 +289,10 @@ func TestAccUser_localdns(t *testing.T) {
 }
 
 func testCheckUserDestroy(s *terraform.State) error {
+	if testClient == nil {
+		return nil // Skip check if testClient is nil
+	}
+
 	for _, rs := range s.RootModule().Resources {
 		if rs.Type != "unifi_user" {
 			continue
@@ -294,7 +303,7 @@ func testCheckUserDestroy(s *terraform.State) error {
 			return fmt.Errorf("User still exists: %s", rs.Primary.ID)
 		}
 
-		if _, ok := err.(*unifi.NotFoundError); ok {
+		if errors.Is(err, unifi.ErrNotFound) {
 			continue
 		}
 

@@ -87,14 +87,14 @@ resource "unifi_firewall_group" "test" {
 
 const testAccFirewallGroupConfig_same_name = `
 resource "unifi_firewall_group" "test_a" {
-	name = "tf-acc fg"
+	name = "tf_acc_fg"
 	type = "address-group"
 	
 	members = []
 }
 
 resource "unifi_firewall_group" "test_b" {
-	name = "tf-acc fg"
+	name = "tf_acc_fg"
 	type = "address-group"
 	
 	members = []

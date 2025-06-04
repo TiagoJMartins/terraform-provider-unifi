@@ -15,16 +15,30 @@ var (
 )
 
 func (c *client) ControllerVersion() *version.Version {
-	return version.Must(version.NewVersion(c.c.Version()))
+	versionStr := c.c.Version()
+	if versionStr == "" {
+		// Return a default version if version is not available
+		return version.Must(version.NewVersion("0.0.0"))
+	}
+	v, err := version.NewVersion(versionStr)
+	if err != nil {
+		// Return a default version if version parsing fails
+		return version.Must(version.NewVersion("0.0.0"))
+	}
+	return v
 }
 
 func checkMinimumControllerVersion(versionString string) error {
+	if versionString == "" {
+		// Skip version check if version is not available
+		return nil
+	}
 	v, err := version.NewVersion(versionString)
 	if err != nil {
 		return err
 	}
 	if v.LessThan(controllerV6) {
-		return fmt.Errorf("Controller version %q or greater is required to use the provider, found %q.", controllerV6, v)
+		return fmt.Errorf("controller version %q or greater is required to use the provider, found %q", controllerV6, v)
 	}
 	return nil
 }

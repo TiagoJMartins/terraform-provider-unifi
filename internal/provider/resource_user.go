@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
@@ -135,23 +136,27 @@ func resourceUserCreate(ctx context.Context, d *schema.ResourceData, meta interf
 
 	resp, err := c.c.CreateUser(ctx, site, req)
 	if err != nil {
-		var apiErr *unifi.APIError
-		if !errors.As(err, &apiErr) || (apiErr.Message != "api.err.MacUsed" || !allowExisting) {
-			return diag.FromErr(err)
-		}
+		var serverErr *unifi.ServerError
+		if errors.As(err, &serverErr) && allowExisting {
+			errorStr := err.Error()
+			if serverErr.Message == "api.err.MacUsed" || strings.Contains(errorStr, "api.err.MacUsed") {
+				mac := d.Get("mac").(string)
+				existing, err := c.c.GetUserByMAC(ctx, site, mac)
+				if err != nil {
+					return diag.FromErr(err)
+				}
 
-		// mac in use, just absorb it
-		mac := d.Get("mac").(string)
-		existing, err := c.c.GetUserByMAC(ctx, site, mac)
-		if err != nil {
-			return diag.FromErr(err)
-		}
+				req.ID = existing.ID
+				req.SiteID = existing.SiteID
 
-		req.ID = existing.ID
-		req.SiteID = existing.SiteID
-
-		resp, err = c.c.UpdateUser(ctx, site, req)
-		if err != nil {
+				resp, err = c.c.UpdateUser(ctx, site, req)
+				if err != nil {
+					return diag.FromErr(err)
+				}
+			} else {
+				return diag.FromErr(err)
+			}
+		} else {
 			return diag.FromErr(err)
 		}
 	}
@@ -238,7 +243,7 @@ func resourceUserRead(ctx context.Context, d *schema.ResourceData, meta interfac
 	}
 
 	resp, err := c.c.GetUser(ctx, site, id)
-	if _, ok := err.(*unifi.NotFoundError); ok {
+	if errors.Is(err, unifi.ErrNotFound) {
 		d.SetId("")
 		return nil
 	}
@@ -248,7 +253,7 @@ func resourceUserRead(ctx context.Context, d *schema.ResourceData, meta interfac
 
 	// for some reason the IP address is only on this endpoint, so issue another request
 	macResp, err := c.c.GetUserByMAC(ctx, site, resp.MAC)
-	if _, ok := err.(*unifi.NotFoundError); ok {
+	if errors.Is(err, unifi.ErrNotFound) {
 		d.SetId("")
 		return nil
 	}
@@ -332,7 +337,7 @@ func resourceUserDelete(ctx context.Context, d *schema.ResourceData, meta interf
 
 	// lookup MAC instead of trusting state
 	u, err := c.c.GetUser(ctx, site, id)
-	if _, ok := err.(*unifi.NotFoundError); ok {
+	if errors.Is(err, unifi.ErrNotFound) {
 		return nil
 	}
 	if err != nil {

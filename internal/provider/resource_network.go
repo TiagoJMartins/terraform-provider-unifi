@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -466,8 +467,8 @@ func resourceNetworkGetResourceData(d *schema.ResourceData, meta interface{}) (*
 		IPV6RaPriority:          d.Get("ipv6_ra_priority").(string),
 		IPV6RaValidLifetime:     d.Get("ipv6_ra_valid_lifetime").(int),
 
-		InternetAccessEnabled:     d.Get("internet_access_enabled").(bool),
-		IntraNetworkAccessEnabled: d.Get("intra_network_access_enabled").(bool),
+		InternetAccessEnabled:   d.Get("internet_access_enabled").(bool),
+		NetworkIsolationEnabled: !d.Get("intra_network_access_enabled").(bool),
 
 		WANIP:           d.Get("wan_ip").(string),
 		WANType:         d.Get("wan_type").(string),
@@ -586,7 +587,7 @@ func resourceNetworkSetResourceData(resp *unifi.Network, d *schema.ResourceData,
 	d.Set("domain_name", resp.DomainName)
 	d.Set("igmp_snooping", resp.IGMPSnooping)
 	d.Set("internet_access_enabled", resp.InternetAccessEnabled)
-	d.Set("intra_network_access_enabled", resp.IntraNetworkAccessEnabled)
+	d.Set("intra_network_access_enabled", !resp.NetworkIsolationEnabled)
 	d.Set("ipv6_interface_type", resp.IPV6InterfaceType)
 	d.Set("ipv6_pd_interface", resp.IPV6PDInterface)
 	d.Set("ipv6_pd_prefixid", resp.IPV6PDPrefixid)
@@ -627,7 +628,7 @@ func resourceNetworkRead(ctx context.Context, d *schema.ResourceData, meta inter
 	}
 
 	resp, err := c.c.GetNetwork(ctx, site, id)
-	if _, ok := err.(*unifi.NotFoundError); ok {
+	if errors.Is(err, unifi.ErrNotFound) {
 		d.SetId("")
 		return nil
 	}
@@ -664,15 +665,14 @@ func resourceNetworkUpdate(ctx context.Context, d *schema.ResourceData, meta int
 func resourceNetworkDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	c := meta.(*client)
 
-	name := d.Get("name").(string)
 	site := d.Get("site").(string)
 	if site == "" {
 		site = c.site
 	}
 	id := d.Id()
 
-	err := c.c.DeleteNetwork(ctx, site, id, name)
-	if _, ok := err.(*unifi.NotFoundError); ok {
+	err := c.c.DeleteNetwork(ctx, site, id)
+	if errors.Is(err, unifi.ErrNotFound) {
 		return nil
 	}
 	return diag.FromErr(err)
@@ -724,12 +724,12 @@ func getNetworkIDByName(ctx context.Context, client unifiClient, networkName, si
 			continue
 		}
 		if idMatchingName != "" {
-			return "", fmt.Errorf("Found multiple networks with name '%s'", networkName)
+			return "", fmt.Errorf("found multiple networks with name '%s'", networkName)
 		}
 		idMatchingName = network.ID
 	}
 	if idMatchingName == "" {
-		return "", fmt.Errorf("Found no networks with name '%s', found: %s", networkName, strings.Join(allNames, ", "))
+		return "", fmt.Errorf("found no networks with name '%s', found: %s", networkName, strings.Join(allNames, ", "))
 	}
 	return idMatchingName, nil
 }

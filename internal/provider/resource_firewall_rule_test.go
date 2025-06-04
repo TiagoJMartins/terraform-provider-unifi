@@ -3,6 +3,7 @@ package provider
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
@@ -213,16 +214,18 @@ resource "unifi_firewall_rule" "test" {
 }
 
 func testAccFirewallRuleConfigMultipleAddressGroups(name string) string {
+	// Replace hyphens with underscores to comply with API validation
+	safeName := strings.ReplaceAll(name, "-", "_")
 	return fmt.Sprintf(`
 resource "unifi_firewall_group" "test_a" {
-	name = "%[1]s-a"
+	name = "%[1]s_a"
 	type = "address-group"
 
 	members = ["192.168.1.1", "192.168.1.2"]
 }
 
 resource "unifi_firewall_group" "test_b" {
-	name = "%[1]s-b"
+	name = "%[1]s_b"
 	type = "address-group"
 
 	members = ["192.168.1.3"]
@@ -244,20 +247,22 @@ resource "unifi_firewall_rule" "test" {
 
 	dst_address = "192.168.1.1"
 }
-`, name)
+`, safeName)
 }
 
 func testAccFirewallRuleConfigMultiplePortGroups(name string) string {
+	// Replace hyphens with underscores to comply with API validation
+	safeName := strings.ReplaceAll(name, "-", "_")
 	return fmt.Sprintf(`
 resource "unifi_firewall_group" "test_a" {
-	name = "%[1]s-a"
+	name = "%[1]s_a"
 	type = "port-group"
 
 	members = ["53"]
 }
 
 resource "unifi_firewall_group" "test_b" {
-	name = "%[1]s-b"
+	name = "%[1]s_b"
 	type = "port-group"
 
 	members = ["80", "443"]
@@ -279,20 +284,22 @@ resource "unifi_firewall_rule" "test" {
 
 	dst_address = "192.168.1.1"
 }
-`, name)
+`, safeName)
 }
 
 func testAccFirewallRuleConfigAddressAndPortGroup(name string) string {
+	// Replace hyphens with underscores to comply with API validation
+	safeName := strings.ReplaceAll(name, "-", "_")
 	return fmt.Sprintf(`
 resource "unifi_firewall_group" "test_a" {
-	name = "%[1]s-a"
+	name = "%[1]s_a"
 	type = "address-group"
 
 	members = ["192.168.1.1", "192.168.1.2"]
 }
 
 resource "unifi_firewall_group" "test_b" {
-	name = "%[1]s-b"
+	name = "%[1]s_b"
 	type = "port-group"
 
 	members = ["80", "443"]
@@ -314,20 +321,22 @@ resource "unifi_firewall_rule" "test" {
 
 	dst_address = "192.168.1.1"
 }
-`, name)
+`, safeName)
 }
 
 func testAccFirewallRuleConfigIPv6(name string) string {
+	// Replace hyphens with underscores to comply with API validation
+	safeName := strings.ReplaceAll(name, "-", "_")
 	return fmt.Sprintf(`
 resource "unifi_firewall_group" "test_a" {
-	name = "%[1]s-a"
+	name = "%[1]s_a"
 	type = "ipv6-address-group"
 
 	members = ["fd6a:37be:e364::/64", "fd6a:37be:e365::/64"]
 }
 
 resource "unifi_firewall_group" "test_b" {
-	name = "%[1]s-b"
+	name = "%[1]s_b"
 	type = "ipv6-address-group"
 
 	members = ["2001:4860:4860::8888", "2001:4860:4860::8844"]
@@ -346,7 +355,7 @@ resource "unifi_firewall_rule" "test" {
 
 	dst_firewall_group_ids = [unifi_firewall_group.test_b.id]
 }
-`, name)
+`, safeName)
 }
 
 func testAccFirewallRuleConfigIPv6WithPort(name string) string {

@@ -1,7 +1,7 @@
 ---
 services:
   unifi:
-    image: "jacobalberty/unifi:${UNIFI_VERSION:-latest}"
+    image: "jacobalberty/unifi:${UNIFI_VERSION:-v9.1.120}"
     init: true
     restart: "always"
     environment:

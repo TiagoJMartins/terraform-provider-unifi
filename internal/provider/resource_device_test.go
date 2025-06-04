@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"sync"
@@ -21,6 +22,10 @@ var (
 )
 
 func allocateDevice(t *testing.T) (*unifi.Device, func()) {
+	if testClient == nil {
+		t.Skip("testClient is nil, skipping acceptance test")
+	}
+
 	ctx := context.Background()
 
 	deviceInit.Do(func() {
@@ -51,7 +56,7 @@ func allocateDevice(t *testing.T) (*unifi.Device, func()) {
 				}
 
 				// Only switches with these chipsets support both port mirroring ang aggregation.
-				if !(isBroadcomSwitch(device) || isMicrosemiSwitch(device) || isNephosSwitch(device)) {
+				if !isBroadcomSwitch(device) && !isMicrosemiSwitch(device) && !isNephosSwitch(device) {
 					continue
 				}
 
@@ -166,9 +171,13 @@ func isNephosSwitch(device unifi.Device) bool {
 }
 
 func preCheckDeviceExists(t *testing.T, site, mac string) {
+	if testClient == nil {
+		t.Skip("testClient is nil, skipping acceptance test")
+	}
+
 	_, err := testClient.GetDeviceByMAC(context.Background(), site, mac)
 
-	if _, ok := err.(*unifi.NotFoundError); ok {
+	if errors.Is(err, unifi.ErrNotFound) {
 		t.Fatal("Test device not found")
 	}
 }
@@ -366,7 +375,7 @@ func testAccCheckDeviceDestroy(s *terraform.State) error {
 		if device != nil {
 			return fmt.Errorf("Device still exists with ID %v", rs.Primary.ID)
 		}
-		if _, ok := err.(*unifi.NotFoundError); !ok {
+		if !errors.Is(err, unifi.ErrNotFound) {
 			return err
 		}
 	}
@@ -392,7 +401,7 @@ func testAccCheckDeviceExists(n string) resource.TestCheckFunc {
 		if device == nil {
 			return fmt.Errorf("Device not found with ID %v", id)
 		}
-		if _, ok := err.(*unifi.NotFoundError); !ok {
+		if !errors.Is(err, unifi.ErrNotFound) {
 			return err
 		}
 

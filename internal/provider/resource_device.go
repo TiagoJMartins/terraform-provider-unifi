@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -258,13 +259,25 @@ func resourceDeviceDelete(ctx context.Context, d *schema.ResourceData, meta inte
 		site = c.site
 	}
 
-	err := c.c.ForgetDevice(ctx, site, mac)
+	// Retry device forget operation if device is busy
+	err := retry.RetryContext(ctx, 2*time.Minute, func() *retry.RetryError {
+		err := c.c.ForgetDevice(ctx, site, mac)
+		if err != nil {
+			var serverErr *unifi.ServerError
+			if errors.As(err, &serverErr) && serverErr.Message == "api.err.DeviceBusy" {
+				return retry.RetryableError(fmt.Errorf("device is busy, retrying: %w", err))
+			}
+			return retry.NonRetryableError(err)
+		}
+		return nil
+	})
+
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
 	_, err = waitForDeviceState(ctx, d, meta, unifi.DeviceStatePending, []unifi.DeviceState{unifi.DeviceStateConnected, unifi.DeviceStateDeleting}, 1*time.Minute)
-	if _, ok := err.(*unifi.NotFoundError); !ok {
+	if !errors.Is(err, unifi.ErrNotFound) {
 		return diag.FromErr(err)
 	}
 
@@ -282,7 +295,7 @@ func resourceDeviceRead(ctx context.Context, d *schema.ResourceData, meta interf
 	}
 
 	resp, err := c.c.GetDevice(ctx, site, id)
-	if _, ok := err.(*unifi.NotFoundError); ok {
+	if errors.Is(err, unifi.ErrNotFound) {
 		d.SetId("")
 		return nil
 	}
@@ -410,7 +423,7 @@ func waitForDeviceState(ctx context.Context, d *schema.ResourceData, meta interf
 		Refresh: func() (interface{}, string, error) {
 			device, err := c.c.GetDeviceByMAC(ctx, site, mac)
 
-			if _, ok := err.(*unifi.NotFoundError); ok {
+			if errors.Is(err, unifi.ErrNotFound) {
 				err = nil
 			}
 

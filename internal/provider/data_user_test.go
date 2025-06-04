@@ -10,6 +10,10 @@ import (
 )
 
 func TestAccDataUser_default(t *testing.T) {
+	if testClient == nil {
+		t.Skip("testClient is nil, skipping acceptance test")
+	}
+
 	mac, unallocateTestMac := allocateTestMac(t)
 	defer unallocateTestMac()
 

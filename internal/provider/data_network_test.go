@@ -9,13 +9,20 @@ import (
 )
 
 func TestAccDataNetwork_byName(t *testing.T) {
-	defaultName := "Default"
-	v, err := version.NewVersion(testClient.Version())
-	if err != nil {
-		t.Fatalf("error parsing version: %s", err)
+	if testClient == nil {
+		t.Skip("testClient is nil, skipping acceptance test")
 	}
-	if v.LessThan(controllerV7) {
-		defaultName = "LAN"
+
+	defaultName := "Default"
+	versionStr := testClient.Version()
+	if versionStr != "" {
+		v, err := version.NewVersion(versionStr)
+		if err != nil {
+			t.Fatalf("error parsing version: %s", err)
+		}
+		if v.LessThan(controllerV7) {
+			defaultName = "LAN"
+		}
 	}
 
 	resource.ParallelTest(t, resource.TestCase{
@@ -36,13 +43,20 @@ func TestAccDataNetwork_byName(t *testing.T) {
 }
 
 func TestAccDataNetwork_byID(t *testing.T) {
-	defaultName := "Default"
-	v, err := version.NewVersion(testClient.Version())
-	if err != nil {
-		t.Fatalf("error parsing version: %s", err)
+	if testClient == nil {
+		t.Skip("testClient is nil, skipping acceptance test")
 	}
-	if v.LessThan(controllerV7) {
-		defaultName = "LAN"
+
+	defaultName := "Default"
+	versionStr := testClient.Version()
+	if versionStr != "" {
+		v, err := version.NewVersion(versionStr)
+		if err != nil {
+			t.Fatalf("error parsing version: %s", err)
+		}
+		if v.LessThan(controllerV7) {
+			defaultName = "LAN"
+		}
 	}
 
 	resource.ParallelTest(t, resource.TestCase{

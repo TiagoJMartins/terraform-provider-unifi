@@ -37,4 +37,4 @@ signs:
       - "--detach-sign"
       - "${artifact}"
 changelog:
-  skip: true
+  use: github

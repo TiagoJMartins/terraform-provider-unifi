@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -101,9 +102,10 @@ func resourceSettingUsgUpdateResourceData(d *schema.ResourceData, meta interface
 		setting.MdnsEnabled = mdns.(bool)
 	}
 
-	setting.FirewallGuestDefaultLog = d.Get("firewall_guest_default_log").(bool)
-	setting.FirewallLanDefaultLog = d.Get("firewall_lan_default_log").(bool)
-	setting.FirewallWANDefaultLog = d.Get("firewall_wan_default_log").(bool)
+	// Firewall logging fields removed in new unifi version
+	// setting.FirewallGuestDefaultLog = d.Get("firewall_guest_default_log").(bool)
+	// setting.FirewallLanDefaultLog = d.Get("firewall_lan_default_log").(bool)
+	// setting.FirewallWANDefaultLog = d.Get("firewall_wan_default_log").(bool)
 
 	dhcpRelay, err := listToStringSlice(d.Get("dhcp_relay_servers").([]interface{}))
 	if err != nil {
@@ -148,9 +150,10 @@ func resourceSettingUsgUpsert(ctx context.Context, d *schema.ResourceData, meta 
 func resourceSettingUsgSetResourceData(resp *unifi.SettingUsg, d *schema.ResourceData, meta interface{}, site string) diag.Diagnostics {
 	d.Set("site", site)
 	d.Set("multicast_dns_enabled", resp.MdnsEnabled)
-	d.Set("firewall_guest_default_log", resp.FirewallGuestDefaultLog)
-	d.Set("firewall_lan_default_log", resp.FirewallLanDefaultLog)
-	d.Set("firewall_wan_default_log", resp.FirewallWANDefaultLog)
+	// Firewall logging fields removed in new unifi version
+	// d.Set("firewall_guest_default_log", resp.FirewallGuestDefaultLog)
+	// d.Set("firewall_lan_default_log", resp.FirewallLanDefaultLog)
+	// d.Set("firewall_wan_default_log", resp.FirewallWANDefaultLog)
 
 	dhcpRelay := []string{}
 	for _, s := range []string{
@@ -179,7 +182,7 @@ func resourceSettingUsgRead(ctx context.Context, d *schema.ResourceData, meta in
 	}
 
 	resp, err := c.c.GetSettingUsg(ctx, site)
-	if _, ok := err.(*unifi.NotFoundError); ok {
+	if errors.Is(err, unifi.ErrNotFound) {
 		d.SetId("")
 		return nil
 	}
