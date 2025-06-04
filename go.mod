@@ -4,8 +4,9 @@ go 1.23.5
 
 toolchain go1.24.3
 
-replace github.com/paultyng/go-unifi => ../go-unifi
+replace github.com/paultyng/go-unifi => github.com/tiagojmartins/go-unifi v1.37.0
 
+// replace github.com/paultyng/go-unifi => ../go-unifi
 // replace github.com/hashicorp/terraform-plugin-docs => ../../hashicorp/terraform-plugin-docs
 // replace github.com/hashicorp/terraform-plugin-sdk/v2 => ../../hashicorp/terraform-plugin-sdk
 
@@ -118,7 +119,6 @@ require (
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/filipowm/go-unifi v1.8.1 // indirect
 	github.com/firefart/nonamedreturns v1.0.5 // indirect
 	github.com/fsnotify/fsevents v0.2.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
